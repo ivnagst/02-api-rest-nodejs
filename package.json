@@ -3,11 +3,22 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "lint": "eslint src --ext .ts --fix"
+  },
   "keywords": [],
   "author": "Ivan A. Ferreira Aguiar",
   "license": "ISC",
+  "type": "module",
   "devDependencies": {
+    "@rocketseat/eslint-config": "^2.1.0",
+    "@types/node": "^20.11.16",
+    "eslint": "^8.56.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "fastify": "^4.26.0"
   }
 }
