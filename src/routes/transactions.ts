@@ -1,26 +1,41 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
+import { ZodFirstPartyTypeKind, z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import knex from 'knex';
-import { get } from 'node:http';
+import { knexSetup } from '../database';
+import { checkSessionIdExists } from '../middlewares/check-session-id-exists';
 
 export async function transactionsRoutes(app: FastifyInstance) {
-	app.get('/', async () => {
-		const transactions = await knex('transactions').select();
+	app.get('/', { preHandler: [checkSessionIdExists] }, async () => {
+		const transactions = await knexSetup('transactions').select();
 
 		return { transactions };
 	});
 
-	app.get('/:id', async (request) => {
+	app.get('/:id', { preHandler: [checkSessionIdExists] }, async (request) => {
 		const getTransactionParamsSchema = z.object({
 			id: z.string().uuid(),
 		});
 
 		const { id } = getTransactionParamsSchema.parse(request.params);
 
-		const transaction = await knex('transaction').where('id', id).first;
+		const { sessionId } = request.cookies;
 
-		return { transaction };
+		const transaction = knexSetup('transactions')
+			.where({
+				session_id: sessionId,
+				id,
+			})
+			.first();
+
+		return transaction;
+	});
+
+	app.get('/summary', { preHandler: [checkSessionIdExists] }, async (request) => {
+		const { sessionId } = request.cookies;
+
+		const summary = await knexSetup('transactions').where('session_id', sessionId).sum('amount', { as: 'amount' }).first();
+
+		return { summary };
 	});
 
 	app.post('/', async (request, reply) => {
@@ -32,10 +47,22 @@ export async function transactionsRoutes(app: FastifyInstance) {
 
 		const { title, amount, type } = createTransactionBodySchema.parse(request.body);
 
-		await knex('transactions').insert({
+		let sessionId = request.cookies.sessionId;
+
+		if (!sessionId) {
+			sessionId = randomUUID();
+
+			reply.setCookie('sessionId', sessionId, {
+				path: '/',
+				maxAge: 60 * 60 * 24 * 7, // 7 dias
+			});
+		}
+
+		await knexSetup('transactions').insert({
 			id: randomUUID(),
 			title,
 			amount: type === 'credit' ? amount : amount * -1,
+			session_id: sessionId,
 		});
 
 		return reply.status(201).send('Transação realizada!');
